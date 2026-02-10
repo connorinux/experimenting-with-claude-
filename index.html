@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diatom Guy Adventure</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    background: #000;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  #game {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  #background {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+
+  .sprite {
+    position: absolute;
+    z-index: 1;
+    image-rendering: auto;
+  }
+
+  #diatom-guy {
+    left: 10%;
+    bottom: 5%;
+    height: 45%;
+  }
+
+  #diatom-guy-with-hat {
+    left: 10%;
+    bottom: 5%;
+    height: 45%;
+    display: none;
+  }
+
+  #hat {
+    left: 12%;
+    bottom: 52%;
+    height: 15%;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  #door {
+    right: 10%;
+    bottom: 5%;
+    height: 55%;
+    display: none;
+  }
+
+  /* Scene 2 sprites */
+  #house {
+    left: 5%;
+    bottom: 10%;
+    height: 70%;
+    display: none;
+  }
+
+  #car {
+    left: 50%;
+    bottom: 3%;
+    height: 25%;
+    transform: translateX(-50%);
+    display: none;
+    cursor: pointer;
+  }
+
+  #car-with-driver {
+    left: 50%;
+    bottom: 3%;
+    height: 25%;
+    transform: translateX(-50%);
+    display: none;
+  }
+
+  /* Animations */
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+
+  @keyframes bob-center {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-12px); }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(-50%) rotate(0deg); }
+    25% { transform: translateX(-50%) rotate(-1.5deg); }
+    75% { transform: translateX(-50%) rotate(1.5deg); }
+  }
+
+  @keyframes driveOff {
+    0% { transform: translateX(-50%); }
+    100% { transform: translateX(120vw); }
+  }
+
+  .bobbing {
+    animation: bob 1.5s ease-in-out infinite;
+  }
+
+  .bobbing-center {
+    animation: bob-center 1.5s ease-in-out infinite;
+  }
+
+  .shaking {
+    animation: shake 0.1s ease-in-out infinite;
+  }
+
+  .drive-off {
+    animation: driveOff 1.5s ease-in forwards;
+  }
+</style>
+</head>
+<body>
+<div id="game">
+  <img id="background" src="assets/inside-scene2.jpg" alt="background">
+
+  <!-- Scene 1 sprites -->
+  <img id="diatom-guy" class="sprite" src="assets/diatom-guy.png" alt="diatom guy">
+  <img id="diatom-guy-with-hat" class="sprite" src="assets/diatom-guy-with-hat.png" alt="diatom guy with hat">
+  <img id="hat" class="sprite bobbing" src="assets/hat.png" alt="hat">
+  <img id="door" class="sprite" src="assets/door.png" alt="door">
+
+  <!-- Scene 2 sprites -->
+  <img id="house" class="sprite" src="assets/house.png" alt="house">
+  <img id="car" class="sprite" src="assets/car.png" alt="car">
+  <img id="car-with-driver" class="sprite" src="assets/car-with-driver.png" alt="car with driver">
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  // --- Scene 1 ---
+
+  // Click hat: swap diatom-guy for diatom-guy-with-hat, hide hat, show door
+  $('hat').addEventListener('click', () => {
+    $('hat').style.display = 'none';
+    $('diatom-guy').style.display = 'none';
+    $('diatom-guy-with-hat').style.display = 'block';
+    $('diatom-guy-with-hat').classList.add('bobbing');
+    $('door').style.display = 'block';
+
+    // Make diatom-guy-with-hat draggable
+    makeDraggable($('diatom-guy-with-hat'));
+  });
+
+  // Drag logic
+  function makeDraggable(el) {
+    let dragging = false;
+    let offsetX, offsetY;
+
+    el.style.cursor = 'grab';
+
+    el.addEventListener('pointerdown', e => {
+      dragging = true;
+      el.style.cursor = 'grabbing';
+      el.setPointerCapture(e.pointerId);
+
+      const rect = el.getBoundingClientRect();
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
+
+      // Switch to fixed positioning for free movement
+      el.style.position = 'absolute';
+      el.style.left = rect.left + 'px';
+      el.style.top = rect.top + 'px';
+      el.style.bottom = 'auto';
+      el.style.right = 'auto';
+      el.classList.remove('bobbing');
+    });
+
+    el.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      el.style.left = (e.clientX - offsetX) + 'px';
+      el.style.top = (e.clientY - offsetY) + 'px';
+    });
+
+    el.addEventListener('pointerup', e => {
+      if (!dragging) return;
+      dragging = false;
+      el.style.cursor = 'grab';
+
+      // Check overlap with door
+      const elRect = el.getBoundingClientRect();
+      const doorRect = $('door').getBoundingClientRect();
+
+      if (rectsOverlap(elRect, doorRect)) {
+        startScene2();
+      } else {
+        el.classList.add('bobbing');
+      }
+    });
+  }
+
+  function rectsOverlap(a, b) {
+    return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+  }
+
+  // --- Scene 2 ---
+
+  function startScene2() {
+    // Hide all scene-1 elements
+    $('background').style.display = 'none';
+    $('diatom-guy-with-hat').classList.remove('bobbing');
+    $('door').style.display = 'none';
+
+    // Change background to plain color
+    $('game').style.background = '#87CEEB';
+
+    // Reposition diatom-guy-with-hat in front of house
+    const dwh = $('diatom-guy-with-hat');
+    dwh.style.left = '15%';
+    dwh.style.bottom = '10%';
+    dwh.style.top = 'auto';
+    dwh.style.height = '40%';
+    dwh.style.cursor = 'default';
+    dwh.classList.add('bobbing');
+    dwh.style.display = 'block';
+    dwh.style.zIndex = '2';
+
+    // Show house and car
+    $('house').style.display = 'block';
+    $('car').style.display = 'block';
+  }
+
+  // Click car: diatom disappears, car becomes car-with-driver, shakes, drives off
+  $('car').addEventListener('click', () => {
+    $('diatom-guy-with-hat').style.display = 'none';
+    $('car').style.display = 'none';
+
+    const cwd = $('car-with-driver');
+    cwd.style.display = 'block';
+    cwd.classList.add('shaking');
+
+    // After 1 second, drive off screen to the right
+    setTimeout(() => {
+      cwd.classList.remove('shaking');
+      cwd.classList.add('drive-off');
+    }, 1000);
+  });
+</script>
+</body>
+</html>
