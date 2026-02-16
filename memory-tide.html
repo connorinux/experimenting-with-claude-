@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Tide</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap');
+
+  body {
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Cormorant Garamond', 'Georgia', serif;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ─── Ocean Background ─── */
+  #ocean {
+    position: fixed; inset: 0;
+    background: linear-gradient(180deg, #0a1628 0%, #0f2847 30%, #164a6e 55%, #1a6e8e 75%, #2a8a9e 100%);
+    transition: filter 1.5s ease;
+  }
+
+  /* Animated wave layers */
+  .wave {
+    position: absolute; bottom: 0; left: -50%; width: 200%; height: 60%;
+    background: radial-gradient(ellipse at 50% 100%, rgba(30,120,160,0.15) 0%, transparent 70%);
+    animation: drift 8s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  .wave:nth-child(2) {
+    height: 50%; opacity: 0.6;
+    animation: drift 11s ease-in-out infinite alternate-reverse;
+  }
+  .wave:nth-child(3) {
+    height: 40%; opacity: 0.4;
+    animation: drift 14s ease-in-out infinite alternate;
+    background: radial-gradient(ellipse at 50% 100%, rgba(60,180,200,0.1) 0%, transparent 60%);
+  }
+
+  @keyframes drift {
+    0%   { transform: translateX(-2%) translateY(0); }
+    100% { transform: translateX(2%) translateY(-8px); }
+  }
+
+  /* Subtle light caustics overlay */
+  #caustics {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 60%, rgba(100,200,230,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 40%, rgba(80,180,210,0.03) 0%, transparent 50%);
+    animation: causticShift 12s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes causticShift {
+    0%   { opacity: 0.6; transform: scale(1); }
+    100% { opacity: 1;   transform: scale(1.05); }
+  }
+
+  /* ─── Ripple Effect ─── */
+  .ripple {
+    position: absolute;
+    border: 1.5px solid rgba(150, 210, 230, 0.5);
+    border-radius: 50%;
+    transform: scale(0);
+    opacity: 1;
+    pointer-events: none;
+    animation: rippleExpand 1.6s ease-out forwards;
+  }
+  @keyframes rippleExpand {
+    0%   { transform: scale(0); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 0; }
+  }
+
+  /* ─── Scene Text ─── */
+  #prompt-text {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(180, 215, 230, 0.85);
+    font-size: clamp(1.4rem, 3vw, 2.2rem);
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1.8s ease, transform 1.8s ease;
+    z-index: 10;
+  }
+  #prompt-text.visible {
+    opacity: 1;
+  }
+  #prompt-text.fade-up {
+    transform: translate(-50%, -70%);
+    opacity: 0;
+  }
+
+  /* ─── Glow Orb ─── */
+  #glow {
+    position: fixed;
+    left: 50%; top: 100%;
+    width: 60px; height: 60px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(180,230,255,0.9) 0%, rgba(100,190,230,0.4) 40%, transparent 70%);
+    box-shadow: 0 0 40px 15px rgba(120,200,240,0.3), 0 0 80px 30px rgba(80,170,220,0.15);
+    pointer-events: none;
+    opacity: 0;
+    transition: top 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                opacity 1.5s ease,
+                width 0.8s ease, height 0.8s ease,
+                box-shadow 0.8s ease;
+    z-index: 5;
+  }
+  #glow.rising {
+    top: 50%;
+    opacity: 1;
+  }
+  #glow.pulsing {
+    animation: pulse 2.5s ease-in-out infinite;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 40px 15px rgba(120,200,240,0.3), 0 0 80px 30px rgba(80,170,220,0.15); }
+    50%      { box-shadow: 0 0 55px 22px rgba(120,200,240,0.45), 0 0 100px 40px rgba(80,170,220,0.2); }
+  }
+
+  /* ─── Hold indicator ring ─── */
+  #hold-ring {
+    position: fixed;
+    left: 50%; top: 50%;
+    width: 90px; height: 90px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 2px solid rgba(180, 230, 255, 0);
+    pointer-events: none;
+    z-index: 6;
+    transition: border-color 0.3s ease;
+  }
+  #hold-ring.active {
+    border-color: rgba(180, 230, 255, 0.5);
+    animation: holdFill 1s linear forwards;
+  }
+  @keyframes holdFill {
+    0%   { clip-path: polygon(50% 50%, 50% 0%, 50% 0%); border-color: rgba(180,230,255,0.5); }
+    12.5%{ clip-path: polygon(50% 50%, 50% 0%, 100% 0%); }
+    25%  { clip-path: polygon(50% 50%, 50% 0%, 100% 0%, 100% 50%); }
+    37.5%{ clip-path: polygon(50% 50%, 50% 0%, 100% 0%, 100% 100%); }
+    50%  { clip-path: polygon(50% 50%, 50% 0%, 100% 0%, 100% 100%, 50% 100%); }
+    62.5%{ clip-path: polygon(50% 50%, 50% 0%, 100% 0%, 100% 100%, 0% 100%); }
+    75%  { clip-path: polygon(50% 50%, 50% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 50%); }
+    87.5%{ clip-path: polygon(50% 50%, 50% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%); }
+    100% { clip-path: polygon(50% 50%, 50% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 50% 0%); border-color: rgba(180,230,255,0.8); }
+  }
+
+  /* ─── Hold instruction ─── */
+  #hold-text {
+    position: fixed;
+    left: 50%; top: calc(50% + 70px);
+    transform: translateX(-50%);
+    color: rgba(160, 210, 230, 0.75);
+    font-size: clamp(0.9rem, 1.8vw, 1.2rem);
+    font-weight: 300;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1.5s ease;
+    z-index: 10;
+  }
+  #hold-text.visible { opacity: 1; }
+
+  /* ─── Memory Photo ─── */
+  #photo-frame {
+    position: fixed;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 0; height: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    opacity: 0;
+    z-index: 15;
+    transition: width 1.2s ease, height 1.2s ease, opacity 1.2s ease;
+    box-shadow: 0 0 60px 20px rgba(100,190,230,0.2);
+  }
+  #photo-frame.expanded {
+    width: min(340px, 70vw);
+    height: min(260px, 50vw);
+    opacity: 1;
+  }
+  #photo-inner {
+    width: 100%; height: 100%;
+    background: linear-gradient(135deg, #1a3a5c 0%, #2a5a7e 30%, #1e4a6a 60%, #163050 100%);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  #photo-inner::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 40%, rgba(200,230,250,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse at 70% 60%, rgba(150,200,230,0.08) 0%, transparent 50%);
+  }
+  #photo-inner::after {
+    content: '';
+    position: absolute; inset: 0;
+    border: 1px solid rgba(150,210,240,0.15);
+    border-radius: 6px;
+  }
+  /* Faint silhouette inside photo */
+  .photo-silhouette {
+    width: 60%; height: 70%;
+    background: radial-gradient(ellipse at 50% 45%, rgba(120,180,210,0.1) 0%, transparent 70%);
+    border-radius: 50% 50% 45% 45%;
+  }
+
+  /* ─── Memory Text Lines ─── */
+  #memory-text {
+    position: fixed;
+    left: 50%; top: calc(50% + 170px);
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 16;
+    pointer-events: none;
+  }
+  .memory-line {
+    color: rgba(180, 220, 240, 0.85);
+    font-size: clamp(1rem, 2vw, 1.35rem);
+    font-style: italic;
+    font-weight: 300;
+    letter-spacing: 0.06em;
+    line-height: 1.9;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 1.2s ease, transform 1.2s ease;
+    white-space: nowrap;
+  }
+  .memory-line.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ─── Let It Go Button ─── */
+  #let-go-btn {
+    position: fixed;
+    left: 50%; bottom: 12%;
+    transform: translateX(-50%);
+    background: transparent;
+    border: 1px solid rgba(150, 210, 240, 0.35);
+    color: rgba(180, 220, 240, 0.8);
+    font-family: 'Cormorant Garamond', 'Georgia', serif;
+    font-size: clamp(1rem, 1.8vw, 1.2rem);
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    padding: 14px 40px;
+    border-radius: 40px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 1.5s ease, border-color 0.4s ease, color 0.4s ease,
+                box-shadow 0.4s ease, transform 0.3s ease;
+    z-index: 20;
+    pointer-events: none;
+  }
+  #let-go-btn.visible {
+    opacity: 1;
+    pointer-events: auto;
+    animation: btnGlow 3s ease-in-out infinite;
+  }
+  @keyframes btnGlow {
+    0%, 100% { box-shadow: 0 0 15px 5px rgba(100,190,230,0.1); }
+    50%      { box-shadow: 0 0 25px 10px rgba(100,190,230,0.2); }
+  }
+  #let-go-btn:hover {
+    border-color: rgba(150, 210, 240, 0.6);
+    color: rgba(200, 235, 250, 1);
+    box-shadow: 0 0 30px 10px rgba(100,190,230,0.25);
+  }
+  #let-go-btn:active {
+    transform: translateX(-50%) scale(0.97);
+  }
+
+  /* ─── Particles ─── */
+  .particle {
+    position: fixed;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: rgba(150, 210, 240, 0.7);
+    pointer-events: none;
+    z-index: 15;
+    opacity: 1;
+  }
+
+  /* ─── Final Text ─── */
+  #final-text {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(160, 210, 230, 0.8);
+    font-size: clamp(1.3rem, 2.8vw, 2rem);
+    font-weight: 300;
+    letter-spacing: 0.12em;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 2s ease;
+    z-index: 10;
+  }
+  #final-text.visible { opacity: 1; }
+
+  /* Ocean blur for scene 2 */
+  #ocean.blurred { filter: blur(4px) brightness(0.7); }
+</style>
+</head>
+<body>
+
+<div id="ocean">
+  <div class="wave"></div>
+  <div class="wave"></div>
+  <div class="wave"></div>
+  <div id="caustics"></div>
+</div>
+
+<div id="prompt-text">Touch the water.</div>
+<div id="glow"></div>
+<div id="hold-ring"></div>
+<div id="hold-text">Hold to bring it closer.</div>
+
+<div id="photo-frame">
+  <div id="photo-inner">
+    <div class="photo-silhouette"></div>
+  </div>
+</div>
+
+<div id="memory-text">
+  <div class="memory-line">I remember the way the light felt.</div>
+  <div class="memory-line">Soft.</div>
+  <div class="memory-line">Temporary.</div>
+</div>
+
+<button id="let-go-btn">Let it go</button>
+<div id="final-text">Some things pass.</div>
+
+<script>
+(function () {
+  // ─── Elements ───
+  const ocean     = document.getElementById('ocean');
+  const prompt    = document.getElementById('prompt-text');
+  const glow      = document.getElementById('glow');
+  const holdRing  = document.getElementById('hold-ring');
+  const holdText  = document.getElementById('hold-text');
+  const photoFrame= document.getElementById('photo-frame');
+  const memLines  = document.querySelectorAll('.memory-line');
+  const letGoBtn  = document.getElementById('let-go-btn');
+  const finalText = document.getElementById('final-text');
+
+  let scene = 0; // 0=waiting, 1=ripple/glow, 2=hold, 3=reveal, 4=release
+  let holdTimer = null;
+  let holdStart = 0;
+
+  // ─── Initialise Scene 1 ───
+  function initScene1() {
+    scene = 0;
+    prompt.textContent = 'Touch the water.';
+    prompt.className = 'visible';
+    glow.className = '';
+    glow.style.top = '100%';
+    glow.style.opacity = '0';
+    holdRing.className = '';
+    holdText.className = '';
+    photoFrame.className = '';
+    memLines.forEach(l => l.classList.remove('visible'));
+    letGoBtn.className = '';
+    letGoBtn.style.pointerEvents = 'none';
+    finalText.className = '';
+    ocean.className = '';
+    ocean.style.pointerEvents = '';
+  }
+
+  initScene1();
+
+  // ─── Ripple helper ───
+  function createRipple(x, y, count, maxSize) {
+    count = count || 3;
+    maxSize = maxSize || 300;
+    for (let i = 0; i < count; i++) {
+      const r = document.createElement('div');
+      r.className = 'ripple';
+      const size = maxSize * (0.5 + i * 0.25);
+      r.style.width = size + 'px';
+      r.style.height = size + 'px';
+      r.style.left = (x - size / 2) + 'px';
+      r.style.top = (y - size / 2) + 'px';
+      r.style.animationDelay = (i * 0.2) + 's';
+      document.body.appendChild(r);
+      r.addEventListener('animationend', () => r.remove());
+    }
+  }
+
+  // ─── Scene 1: Touch the water ───
+  document.addEventListener('click', function (e) {
+    if (scene !== 0) return;
+    scene = 1;
+
+    // Ripple at click
+    createRipple(e.clientX, e.clientY, 3, 350);
+
+    // Fade prompt up
+    prompt.classList.add('fade-up');
+
+    // Rise the glow
+    setTimeout(() => {
+      glow.classList.add('rising');
+      glow.style.opacity = '1';
+    }, 600);
+
+    // After glow arrives, enable pulsing & show hold text
+    setTimeout(() => {
+      scene = 2;
+      glow.classList.add('pulsing');
+      holdText.classList.add('visible');
+    }, 3200);
+  });
+
+  // ─── Scene 2: Hold to bring it closer ───
+  function startHold() {
+    if (scene !== 2) return;
+    holdStart = Date.now();
+    holdRing.classList.add('active');
+
+    holdTimer = setTimeout(() => {
+      // Success — transition to memory reveal
+      scene = 3;
+      holdRing.classList.remove('active');
+      holdText.classList.remove('visible');
+      glow.style.opacity = '0';
+
+      // Blur ocean
+      ocean.classList.add('blurred');
+
+      // Expand photo
+      setTimeout(() => {
+        photoFrame.classList.add('expanded');
+      }, 400);
+
+      // Reveal memory lines one by one
+      memLines.forEach((line, i) => {
+        setTimeout(() => line.classList.add('visible'), 1200 + i * 900);
+      });
+
+      // Show "Let it go" button
+      setTimeout(() => {
+        letGoBtn.classList.add('visible');
+      }, 1200 + memLines.length * 900 + 600);
+
+    }, 1000);
+  }
+
+  function cancelHold() {
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+    holdRing.classList.remove('active');
+  }
+
+  glow.addEventListener('mousedown', startHold);
+  glow.addEventListener('touchstart', function (e) { e.preventDefault(); startHold(); }, { passive: false });
+  document.addEventListener('mouseup', cancelHold);
+  document.addEventListener('touchend', cancelHold);
+
+  // ─── Scene 3 → 4: Let it go ───
+  letGoBtn.addEventListener('click', function () {
+    if (scene !== 3) return;
+    scene = 4;
+
+    letGoBtn.style.opacity = '0';
+    letGoBtn.style.pointerEvents = 'none';
+
+    // Fade memory text
+    memLines.forEach(l => l.classList.remove('visible'));
+
+    // Dissolve photo into particles
+    const rect = photoFrame.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+
+    photoFrame.style.opacity = '0';
+
+    const particleCount = 60;
+    for (let i = 0; i < particleCount; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = 2 + Math.random() * 4;
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+
+      // Start from random position within photo area
+      const sx = cx + (Math.random() - 0.5) * rect.width;
+      const sy = cy + (Math.random() - 0.5) * rect.height;
+      p.style.left = sx + 'px';
+      p.style.top = sy + 'px';
+
+      document.body.appendChild(p);
+
+      // Animate downward / outward
+      const dx = (Math.random() - 0.5) * 200;
+      const dy = 150 + Math.random() * 250;
+      const dur = 1800 + Math.random() * 1500;
+      const delay = Math.random() * 400;
+
+      p.animate([
+        { transform: 'translate(0,0) scale(1)', opacity: 0.8 },
+        { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+      ], { duration: dur, delay: delay, easing: 'ease-out', fill: 'forwards' });
+
+      setTimeout(() => p.remove(), dur + delay + 100);
+    }
+
+    // Release ripples from center
+    setTimeout(() => {
+      createRipple(window.innerWidth / 2, window.innerHeight / 2, 4, 500);
+    }, 500);
+
+    // Un-blur ocean
+    setTimeout(() => {
+      ocean.classList.remove('blurred');
+    }, 1200);
+
+    // Show final text
+    setTimeout(() => {
+      finalText.classList.add('visible');
+    }, 2200);
+
+    // Fade out final text and reset
+    setTimeout(() => {
+      finalText.classList.remove('visible');
+    }, 5500);
+
+    setTimeout(() => {
+      // Clean up photo frame state
+      photoFrame.classList.remove('expanded');
+      photoFrame.style.opacity = '';
+      initScene1();
+    }, 7500);
+  });
+
+})();
+</script>
+</body>
+</html>
