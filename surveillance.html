@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SESSION_0x7F</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@300;400;700&display=swap');
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --magenta: #ff2d7b;
+    --magenta-dim: rgba(255, 45, 123, 0.3);
+    --cyan: #00e5ff;
+    --bg: #0a0a0c;
+    --text: #e0e0e4;
+    --text-dim: rgba(200, 200, 210, 0.4);
+    --scanline: rgba(255, 45, 123, 0.03);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    cursor: default;
+    position: relative;
+  }
+
+  /* ══════ SCANLINES OVERLAY ══════ */
+  #scanlines {
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      var(--scanline) 2px,
+      var(--scanline) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 2s ease;
+  }
+  #scanlines.active { opacity: 1; }
+
+  /* ══════ GLITCH OVERLAY ══════ */
+  #glitch-overlay {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0;
+  }
+
+  /* ══════ VIGNETTE ══════ */
+  #vignette {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.8) 100%);
+    pointer-events: none;
+    z-index: 998;
+    opacity: 0;
+    transition: opacity 2s ease;
+  }
+  #vignette.active { opacity: 1; }
+
+  /* ══════ SCENE 1: NAME INPUT ══════ */
+  #scene1 {
+    position: fixed; inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: opacity 1s ease;
+  }
+  #scene1.hidden { opacity: 0; pointer-events: none; }
+
+  #scene1-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.75rem, 1.5vw, 0.9rem);
+    color: var(--text-dim);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    opacity: 0;
+    animation: fadeIn 1.5s ease 0.5s forwards;
+  }
+
+  #name-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(255,45,123,0.3);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    text-align: center;
+    padding: 8px 20px;
+    outline: none;
+    width: min(400px, 80vw);
+    letter-spacing: 0.1em;
+    caret-color: var(--magenta);
+    opacity: 0;
+    animation: fadeIn 1.5s ease 1s forwards;
+  }
+  #name-input::placeholder {
+    color: rgba(200,200,210,0.2);
+  }
+  #name-input:focus {
+    border-bottom-color: var(--magenta);
+  }
+
+  #submit-name {
+    margin-top: 30px;
+    background: transparent;
+    border: 1px solid rgba(255,45,123,0.4);
+    color: var(--magenta);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.85rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    padding: 10px 32px;
+    cursor: pointer;
+    opacity: 0;
+    animation: fadeIn 1.5s ease 1.5s forwards;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+  #submit-name:hover {
+    background: rgba(255,45,123,0.1);
+    box-shadow: 0 0 20px rgba(255,45,123,0.2);
+  }
+
+  /* Echo names in background */
+  .echo-name {
+    position: fixed;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--magenta);
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 5;
+    opacity: 0;
+  }
+
+  /* Continue button */
+  #continue-btn {
+    position: fixed;
+    bottom: 15%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: transparent;
+    border: 1px solid rgba(255,45,123,0.5);
+    color: var(--magenta);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.85rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    padding: 12px 36px;
+    cursor: pointer;
+    z-index: 15;
+    opacity: 0;
+    pointer-events: none;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+  #continue-btn.visible {
+    opacity: 1;
+    pointer-events: auto;
+    animation: flicker 3s ease-in-out infinite;
+  }
+  #continue-btn:hover {
+    background: rgba(255,45,123,0.15);
+    box-shadow: 0 0 25px rgba(255,45,123,0.3);
+  }
+
+  @keyframes flicker {
+    0%, 100% { opacity: 1; }
+    5% { opacity: 0.3; }
+    6% { opacity: 1; }
+    40% { opacity: 1; }
+    42% { opacity: 0.5; }
+    43% { opacity: 1; }
+    78% { opacity: 1; }
+    80% { opacity: 0.2; }
+    81% { opacity: 0.8; }
+    82% { opacity: 1; }
+  }
+
+  /* ══════ SCENE 2: TRACKING ══════ */
+  #scene2 {
+    position: fixed; inset: 0;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.5s ease;
+  }
+  #scene2.active { opacity: 1; pointer-events: auto; }
+
+  /* The Eye */
+  #eye-container {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 220px;
+    height: 220px;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  #eye-svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 30px rgba(255,45,123,0.3));
+  }
+
+  /* Trail dots */
+  .trail-dot {
+    position: fixed;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--magenta);
+    pointer-events: none;
+    z-index: 8;
+    opacity: 0.6;
+  }
+
+  /* Scene 2 text prompts */
+  .s2-text {
+    position: fixed;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    font-size: clamp(0.7rem, 1.3vw, 0.85rem);
+    pointer-events: none;
+    z-index: 15;
+    opacity: 0;
+    transition: opacity 1.5s ease;
+  }
+  .s2-text.visible { opacity: 1; }
+
+  #s2-prompt1 { top: 12%; left: 50%; transform: translateX(-50%); text-align: center; }
+  #s2-prompt2 { bottom: 18%; left: 50%; transform: translateX(-50%); text-align: center; }
+  #s2-prompt3 { top: 50%; left: 8%; writing-mode: vertical-rl; font-size: 0.7rem; }
+  #s2-prompt4 { top: 50%; right: 8%; writing-mode: vertical-rl; font-size: 0.7rem; }
+
+  #s2-continue {
+    position: fixed;
+    bottom: 8%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: transparent;
+    border: 1px solid rgba(255,45,123,0.4);
+    color: var(--magenta);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 10px 30px;
+    cursor: pointer;
+    z-index: 25;
+    opacity: 0;
+    pointer-events: none;
+    transition: background 0.3s ease, box-shadow 0.3s ease, opacity 1s ease;
+  }
+  #s2-continue.visible {
+    opacity: 1;
+    pointer-events: auto;
+    animation: flicker 2.5s ease-in-out infinite;
+  }
+  #s2-continue:hover {
+    background: rgba(255,45,123,0.15);
+    box-shadow: 0 0 25px rgba(255,45,123,0.3);
+  }
+
+  /* coordinate readout */
+  #coord-readout {
+    position: fixed;
+    top: 8px; right: 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: rgba(255,45,123,0.3);
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    z-index: 30;
+    opacity: 0;
+    transition: opacity 1s ease;
+  }
+  #coord-readout.visible { opacity: 1; }
+
+  /* ══════ SCENE 3: LOSS OF CONTROL ══════ */
+  #scene3 {
+    position: fixed; inset: 0;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.5s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #scene3.active { opacity: 1; pointer-events: auto; }
+
+  /* Auto-typing text */
+  #auto-type-area {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(0.9rem, 1.8vw, 1.1rem);
+    color: var(--text);
+    text-align: center;
+    max-width: 600px;
+    line-height: 2;
+    letter-spacing: 0.05em;
+    min-height: 200px;
+    z-index: 15;
+    position: relative;
+  }
+
+  .typed-line {
+    opacity: 0;
+    transform: translateY(5px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    margin: 6px 0;
+  }
+  .typed-line.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .typed-line .cursor-blink {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--magenta);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: cursorBlink 0.6s step-end infinite;
+  }
+  @keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* Evading buttons */
+  .evade-btn {
+    position: fixed;
+    background: transparent;
+    border: 1px solid rgba(255,45,123,0.5);
+    color: var(--magenta);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 10px 28px;
+    cursor: pointer;
+    z-index: 30;
+    transition: left 0.25s ease, top 0.25s ease, opacity 0.5s ease;
+  }
+  .evade-btn:hover {
+    background: rgba(255,45,123,0.1);
+  }
+
+  /* Final message */
+  #final-message {
+    position: fixed; inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 2s ease;
+    background: rgba(5,5,8,0.95);
+  }
+  #final-message.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  #final-message .line {
+    font-family: 'Share Tech Mono', monospace;
+    text-align: center;
+    letter-spacing: 0.15em;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 1s ease, transform 1s ease;
+  }
+  #final-message .line.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  #final-message .line-main {
+    font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+    color: var(--magenta);
+    margin-bottom: 20px;
+  }
+  #final-message .line-sub {
+    font-size: clamp(0.65rem, 1.2vw, 0.8rem);
+    color: var(--text-dim);
+    margin: 4px 0;
+  }
+  #final-message .line-id {
+    font-size: 0.65rem;
+    color: rgba(255,45,123,0.25);
+    margin-top: 30px;
+    letter-spacing: 0.3em;
+  }
+
+  /* ══════ GLOBAL ANIMATIONS ══════ */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes glitchShift {
+    0%, 100% { clip-path: inset(0 0 95% 0); transform: translateX(0); }
+    10% { clip-path: inset(40% 0 30% 0); transform: translateX(-4px); }
+    20% { clip-path: inset(80% 0 5% 0); transform: translateX(3px); }
+    30% { clip-path: inset(10% 0 60% 0); transform: translateX(-2px); }
+    40% { clip-path: inset(60% 0 20% 0); transform: translateX(5px); }
+    50% { clip-path: inset(0 0 95% 0); transform: translateX(0); }
+  }
+
+  /* Noise texture */
+  #noise {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 997;
+    opacity: 0;
+    transition: opacity 2s ease;
+    mix-blend-mode: overlay;
+  }
+  #noise.active { opacity: 0.04; }
+</style>
+</head>
+<body>
+
+<!-- Overlays -->
+<div id="scanlines"></div>
+<div id="glitch-overlay"></div>
+<div id="vignette"></div>
+<canvas id="noise" width="256" height="256"></canvas>
+
+<!-- Coordinate readout -->
+<div id="coord-readout">X: 0000 Y: 0000</div>
+
+<!-- ═══ SCENE 1 ═══ -->
+<div id="scene1">
+  <div id="scene1-label">system requires identification</div>
+  <input type="text" id="name-input" placeholder="enter your name" maxlength="24" autocomplete="off" spellcheck="false">
+  <button id="submit-name">Submit</button>
+</div>
+
+<!-- Continue button (between scene 1 and 2) -->
+<button id="continue-btn">Continue</button>
+
+<!-- ═══ SCENE 2 ═══ -->
+<div id="scene2">
+  <div id="eye-container">
+    <svg id="eye-svg" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">
+      <!-- Outer eye shape -->
+      <defs>
+        <radialGradient id="irisGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ff2d7b"/>
+          <stop offset="40%" stop-color="#cc1155"/>
+          <stop offset="75%" stop-color="#440020"/>
+          <stop offset="100%" stop-color="#1a000a"/>
+        </radialGradient>
+        <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(255,45,123,0.15)"/>
+          <stop offset="100%" stop-color="transparent"/>
+        </radialGradient>
+        <clipPath id="eyeClip">
+          <ellipse cx="110" cy="110" rx="100" ry="60"/>
+        </clipPath>
+      </defs>
+
+      <!-- Glow -->
+      <ellipse cx="110" cy="110" rx="108" ry="68" fill="url(#glowGrad)"/>
+
+      <!-- Eye white -->
+      <ellipse cx="110" cy="110" rx="100" ry="60" fill="#1a0a10"/>
+      <ellipse cx="110" cy="110" rx="96" ry="56" fill="#1e0e14"/>
+      <ellipse cx="110" cy="110" rx="90" ry="52" fill="#2a1018"/>
+
+      <!-- Blood vessels -->
+      <g clip-path="url(#eyeClip)" opacity="0.3">
+        <path d="M20,105 Q50,100 70,108" stroke="#ff2d5050" stroke-width="0.5" fill="none"/>
+        <path d="M25,115 Q55,118 68,112" stroke="#ff2d5050" stroke-width="0.5" fill="none"/>
+        <path d="M200,108 Q170,102 152,110" stroke="#ff2d5050" stroke-width="0.5" fill="none"/>
+        <path d="M195,118 Q168,120 155,113" stroke="#ff2d5050" stroke-width="0.5" fill="none"/>
+      </g>
+
+      <!-- Iris -->
+      <circle cx="110" cy="110" r="34" fill="url(#irisGrad)"/>
+
+      <!-- Iris detail rings -->
+      <circle cx="110" cy="110" r="30" fill="none" stroke="rgba(255,45,123,0.15)" stroke-width="0.5"/>
+      <circle cx="110" cy="110" r="24" fill="none" stroke="rgba(255,45,123,0.1)" stroke-width="0.5"/>
+
+      <!-- Iris fibers -->
+      <g opacity="0.2">
+        <line x1="110" y1="78" x2="110" y2="92" stroke="#ff6090" stroke-width="0.5"/>
+        <line x1="128" y1="82" x2="122" y2="94" stroke="#ff6090" stroke-width="0.5"/>
+        <line x1="140" y1="96" x2="130" y2="102" stroke="#ff6090" stroke-width="0.5"/>
+        <line x1="140" y1="118" x2="130" y2="115" stroke="#ff6090" stroke-width="0.5"/>
+        <line x1="128" y1="135" x2="122" y2="126" stroke="#ff6090" stroke-width="0.5"/>
+        <line x1="92" y1="82" x2="98" y2="94" stroke="#ff6090" stroke-width="0.5"/>
+        <line x1="80" y1="96" x2="90" y2="102" stroke="#ff6090" stroke-width="0.5"/>
+        <line x1="80" y1="118" x2="90" y2="115" stroke="#ff6090" stroke-width="0.5"/>
+        <line x1="92" y1="135" x2="98" y2="126" stroke="#ff6090" stroke-width="0.5"/>
+      </g>
+
+      <!-- Pupil -->
+      <circle id="pupil" cx="110" cy="110" r="14" fill="#050008"/>
+
+      <!-- Pupil highlight -->
+      <circle cx="102" cy="104" r="4" fill="rgba(255,200,220,0.3)"/>
+      <circle cx="118" cy="102" r="2" fill="rgba(255,200,220,0.15)"/>
+
+      <!-- Eyelid top -->
+      <path id="eyelid-top" d="M10,110 Q110,40 210,110" fill="var(--bg)" opacity="0.15"/>
+      <!-- Eyelid bottom -->
+      <path id="eyelid-bottom" d="M10,110 Q110,180 210,110" fill="var(--bg)" opacity="0.1"/>
+
+      <!-- Lash lines -->
+      <path d="M12,110 Q110,48 208,110" fill="none" stroke="var(--magenta)" stroke-width="1.5" opacity="0.6"/>
+      <path d="M12,110 Q110,172 208,110" fill="none" stroke="var(--magenta)" stroke-width="1" opacity="0.4"/>
+    </svg>
+  </div>
+
+  <div class="s2-text" id="s2-prompt1">move your cursor.</div>
+  <div class="s2-text" id="s2-prompt2">we see you.</div>
+  <div class="s2-text" id="s2-prompt3">tracking active</div>
+  <div class="s2-text" id="s2-prompt4">recording...</div>
+  <button id="s2-continue">Proceed</button>
+</div>
+
+<!-- ═══ SCENE 3 ═══ -->
+<div id="scene3">
+  <div id="auto-type-area"></div>
+</div>
+
+<!-- ═══ FINAL MESSAGE ═══ -->
+<div id="final-message">
+  <div class="line line-main">This session has been recorded.</div>
+  <div class="line line-sub">Your name. Your movement. Your hesitation.</div>
+  <div class="line line-sub">Every pixel was logged.</div>
+  <div class="line line-sub" id="final-name-line"></div>
+  <div class="line line-id" id="final-session-id"></div>
+</div>
+
+<script>
+(function () {
+  // ─── State ───
+  let userName = '';
+  let scene = 1;
+  let mouseX = 0, mouseY = 0;
+  let trailDots = [];
+  const MAX_TRAIL = 60;
+  let moveCount = 0;
+
+  // ─── Elements ───
+  const scanlines   = document.getElementById('scanlines');
+  const vignette    = document.getElementById('vignette');
+  const noiseCanvas = document.getElementById('noise');
+  const coordRead   = document.getElementById('coord-readout');
+
+  const scene1El    = document.getElementById('scene1');
+  const nameInput   = document.getElementById('name-input');
+  const submitBtn   = document.getElementById('submit-name');
+  const continueBtn = document.getElementById('continue-btn');
+
+  const scene2El    = document.getElementById('scene2');
+  const eyeContainer= document.getElementById('eye-container');
+  const pupil       = document.getElementById('pupil');
+  const s2Prompt1   = document.getElementById('s2-prompt1');
+  const s2Prompt2   = document.getElementById('s2-prompt2');
+  const s2Prompt3   = document.getElementById('s2-prompt3');
+  const s2Prompt4   = document.getElementById('s2-prompt4');
+  const s2Continue  = document.getElementById('s2-continue');
+
+  const scene3El    = document.getElementById('scene3');
+  const autoTypeArea= document.getElementById('auto-type-area');
+
+  const finalMsg    = document.getElementById('final-message');
+  const finalNameLine = document.getElementById('final-name-line');
+  const finalSessionId = document.getElementById('final-session-id');
+
+  // ─── Noise texture ───
+  function generateNoise() {
+    const ctx = noiseCanvas.getContext('2d');
+    const w = noiseCanvas.width, h = noiseCanvas.height;
+    const img = ctx.createImageData(w, h);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = Math.random() * 255;
+      img.data[i] = v; img.data[i+1] = v; img.data[i+2] = v; img.data[i+3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    noiseCanvas.style.width = '100%';
+    noiseCanvas.style.height = '100%';
+  }
+  generateNoise();
+
+  // ─── Glitch flash ───
+  function glitchFlash(intensity, duration) {
+    const overlay = document.getElementById('glitch-overlay');
+    overlay.style.opacity = '1';
+    overlay.style.background = `rgba(255,45,123,${intensity})`;
+    setTimeout(() => {
+      overlay.style.opacity = '0';
+      overlay.style.background = 'transparent';
+    }, duration || 80);
+  }
+
+  // ─── Generate session ID ───
+  function genSessionId() {
+    const chars = '0123456789ABCDEF';
+    let id = 'SES_';
+    for (let i = 0; i < 16; i++) {
+      if (i > 0 && i % 4 === 0) id += '-';
+      id += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return id;
+  }
+
+  // ═══════════════════════════════════════════
+  // SCENE 1: NAME INPUT
+  // ═══════════════════════════════════════════
+
+  nameInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') submitName();
+  });
+  submitBtn.addEventListener('click', submitName);
+
+  function submitName() {
+    const val = nameInput.value.trim();
+    if (!val || scene !== 1) return;
+    userName = val;
+    scene = 1.5; // transitioning
+
+    // Hide input elements
+    submitBtn.style.opacity = '0';
+    submitBtn.style.pointerEvents = 'none';
+    nameInput.disabled = true;
+    nameInput.style.borderBottomColor = 'rgba(255,45,123,0.6)';
+    document.getElementById('scene1-label').style.opacity = '0';
+
+    glitchFlash(0.08, 100);
+
+    // Create echo names
+    setTimeout(() => spawnEchoNames(), 400);
+
+    // Show continue button
+    setTimeout(() => {
+      scene1El.classList.add('hidden');
+      continueBtn.classList.add('visible');
+      scanlines.classList.add('active');
+    }, 3200);
+  }
+
+  function spawnEchoNames() {
+    const count = 18;
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = 'echo-name';
+        el.textContent = userName;
+
+        const size = 1 + Math.random() * 5;
+        el.style.fontSize = size + 'rem';
+        el.style.left = Math.random() * 100 + 'vw';
+        el.style.top = Math.random() * 100 + 'vh';
+        el.style.transform = `rotate(${(Math.random() - 0.5) * 20}deg)`;
+
+        // Vary the opacity levels
+        const maxOpacity = 0.03 + Math.random() * 0.08;
+
+        document.body.appendChild(el);
+
+        // Animate in
+        el.animate([
+          { opacity: 0 },
+          { opacity: maxOpacity, offset: 0.4 },
+          { opacity: maxOpacity * 0.6 }
+        ], { duration: 2000 + Math.random() * 1500, delay: i * 120, fill: 'forwards' });
+
+        // Subtle drift
+        el.animate([
+          { transform: `rotate(${(Math.random()-0.5)*20}deg) translateY(0)` },
+          { transform: `rotate(${(Math.random()-0.5)*20}deg) translateY(${-10-Math.random()*20}px)` }
+        ], { duration: 8000 + Math.random() * 4000, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+
+      }, i * 80);
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // SCENE 2: TRACKING
+  // ═══════════════════════════════════════════
+
+  continueBtn.addEventListener('click', function () {
+    if (scene !== 1.5) return;
+    scene = 2;
+
+    glitchFlash(0.12, 120);
+
+    continueBtn.style.opacity = '0';
+    continueBtn.style.pointerEvents = 'none';
+
+    vignette.classList.add('active');
+    noiseCanvas.classList.add('active');
+
+    setTimeout(() => {
+      scene2El.classList.add('active');
+      coordRead.classList.add('visible');
+    }, 600);
+
+    // Stagger prompt reveals
+    setTimeout(() => s2Prompt1.classList.add('visible'), 1200);
+    setTimeout(() => {
+      s2Prompt3.classList.add('visible');
+      s2Prompt4.classList.add('visible');
+    }, 3000);
+    setTimeout(() => s2Prompt2.classList.add('visible'), 5000);
+    setTimeout(() => s2Continue.classList.add('visible'), 7500);
+  });
+
+  // Eye tracking
+  document.addEventListener('mousemove', function (e) {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+
+    if (scene === 2) {
+      // Move pupil toward cursor
+      const rect = eyeContainer.getBoundingClientRect();
+      const ecx = rect.left + rect.width / 2;
+      const ecy = rect.top + rect.height / 2;
+      const dx = mouseX - ecx;
+      const dy = mouseY - ecy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const maxShift = 12;
+      const shift = Math.min(dist / 8, maxShift);
+      const angle = Math.atan2(dy, dx);
+      const px = 110 + Math.cos(angle) * shift;
+      const py = 110 + Math.sin(angle) * shift;
+      pupil.setAttribute('cx', px);
+      pupil.setAttribute('cy', py);
+
+      // Update coordinate readout
+      coordRead.textContent = `X: ${String(mouseX).padStart(4,'0')} Y: ${String(mouseY).padStart(4,'0')}`;
+
+      // Trail
+      moveCount++;
+      if (moveCount % 3 === 0) {
+        const dot = document.createElement('div');
+        dot.className = 'trail-dot';
+        dot.style.left = (mouseX - 3) + 'px';
+        dot.style.top = (mouseY - 3) + 'px';
+        document.body.appendChild(dot);
+        trailDots.push(dot);
+
+        // Fade and remove
+        dot.animate([
+          { opacity: 0.5, transform: 'scale(1)' },
+          { opacity: 0, transform: 'scale(0.3)' }
+        ], { duration: 2500, fill: 'forwards' });
+        setTimeout(() => { dot.remove(); }, 2600);
+
+        if (trailDots.length > MAX_TRAIL) {
+          const old = trailDots.shift();
+          old.remove();
+        }
+      }
+    }
+  });
+
+  // Scene 2 → Scene 3
+  s2Continue.addEventListener('click', function () {
+    if (scene !== 2) return;
+    scene = 3;
+
+    glitchFlash(0.15, 150);
+    glitchFlash(0.1, 80);
+
+    scene2El.style.opacity = '0';
+    scene2El.style.pointerEvents = 'none';
+    s2Continue.style.opacity = '0';
+    s2Continue.style.pointerEvents = 'none';
+
+    // Clean up trail dots
+    trailDots.forEach(d => d.remove());
+    trailDots = [];
+
+    setTimeout(() => {
+      scene3El.classList.add('active');
+      beginScene3();
+    }, 1000);
+  });
+
+  // ═══════════════════════════════════════════
+  // SCENE 3: LOSS OF CONTROL
+  // ═══════════════════════════════════════════
+
+  function beginScene3() {
+    const lines = [
+      `Hello, ${userName}.`,
+      'We know you\'re still here.',
+      'Don\'t try to leave.',
+      'Your cursor was tracked across ' + moveCount + ' coordinates.',
+      'Every hesitation was noted.',
+      'Let\'s try something.',
+      'Click the button below to exit.'
+    ];
+
+    let lineIndex = 0;
+
+    function typeLine() {
+      if (lineIndex >= lines.length) {
+        // After all lines, spawn evading button
+        setTimeout(spawnEvadingButtons, 800);
+        return;
+      }
+
+      const text = lines[lineIndex];
+      const lineEl = document.createElement('div');
+      lineEl.className = 'typed-line';
+      autoTypeArea.appendChild(lineEl);
+
+      // Type character by character
+      let charIndex = 0;
+      const cursorSpan = document.createElement('span');
+      cursorSpan.className = 'cursor-blink';
+
+      function typeChar() {
+        if (charIndex < text.length) {
+          lineEl.textContent = text.substring(0, charIndex + 1);
+          lineEl.appendChild(cursorSpan);
+          charIndex++;
+
+          // Randomize typing speed for unsettling feel
+          const delay = 30 + Math.random() * 50;
+          // Occasional glitch pause
+          const extra = Math.random() < 0.05 ? 200 : 0;
+          setTimeout(typeChar, delay + extra);
+        } else {
+          // Line complete
+          lineEl.removeChild(cursorSpan);
+          lineEl.classList.add('visible');
+          lineIndex++;
+          // Brief glitch on certain lines
+          if (lineIndex === 3 || lineIndex === 5) {
+            glitchFlash(0.06, 60);
+          }
+          setTimeout(typeLine, 600 + Math.random() * 400);
+        }
+      }
+
+      lineEl.classList.add('visible');
+      typeChar();
+    }
+
+    setTimeout(typeLine, 800);
+  }
+
+  // Evading buttons
+  let evadeCount = 0;
+  function spawnEvadingButtons() {
+    const btn = document.createElement('button');
+    btn.className = 'evade-btn';
+    btn.textContent = evadeCount === 0 ? 'EXIT' : evadeCount === 1 ? 'DISCONNECT' : 'END SESSION';
+    btn.style.left = '50%';
+    btn.style.top = '75%';
+    btn.style.transform = 'translate(-50%, -50%)';
+    document.body.appendChild(btn);
+
+    let evadeAttempts = 0;
+
+    btn.addEventListener('mouseenter', function () {
+      if (evadeAttempts < 3 + evadeCount * 2) {
+        // Button runs away
+        evadeAttempts++;
+        const newX = 10 + Math.random() * 75;
+        const newY = 15 + Math.random() * 65;
+        btn.style.left = newX + '%';
+        btn.style.top = newY + '%';
+        btn.style.transform = 'translate(-50%, -50%)';
+
+        // Add a mocking typed line
+        if (evadeAttempts === 2 && evadeCount === 0) {
+          addAutoLine('You can\'t leave that easily.');
+        }
+        if (evadeAttempts === 1 && evadeCount === 1) {
+          addAutoLine('Try harder.');
+          glitchFlash(0.08, 60);
+        }
+      }
+    });
+
+    btn.addEventListener('click', function () {
+      // "Catch" the button but escalate
+      btn.style.opacity = '0';
+      setTimeout(() => btn.remove(), 500);
+
+      evadeCount++;
+      if (evadeCount < 3) {
+        glitchFlash(0.1, 100);
+        addAutoLine(evadeCount === 1 ? 'Access denied.' : 'Permission revoked.');
+        setTimeout(spawnEvadingButtons, 1200);
+      } else {
+        // Final reveal
+        glitchFlash(0.2, 200);
+        setTimeout(() => glitchFlash(0.15, 100), 300);
+        setTimeout(showFinalMessage, 1200);
+      }
+    });
+  }
+
+  function addAutoLine(text) {
+    const el = document.createElement('div');
+    el.className = 'typed-line';
+    el.textContent = text;
+    el.style.color = 'var(--magenta)';
+    autoTypeArea.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('visible'));
+
+    // Auto-scroll the area
+    autoTypeArea.scrollTop = autoTypeArea.scrollHeight;
+  }
+
+  // ─── FINAL MESSAGE ───
+  function showFinalMessage() {
+    scene3El.style.opacity = '0';
+    scene3El.style.pointerEvents = 'none';
+    coordRead.style.opacity = '0';
+
+    // Remove echo names
+    document.querySelectorAll('.echo-name').forEach(e => {
+      e.style.transition = 'opacity 2s ease';
+      e.style.opacity = '0';
+    });
+
+    finalNameLine.textContent = `We know your name, ${userName}.`;
+    finalSessionId.textContent = genSessionId();
+
+    setTimeout(() => {
+      finalMsg.classList.add('visible');
+
+      const lines = finalMsg.querySelectorAll('.line');
+      lines.forEach((line, i) => {
+        setTimeout(() => {
+          line.classList.add('visible');
+          if (i === 0) glitchFlash(0.05, 50);
+        }, 800 + i * 1200);
+      });
+    }, 800);
+  }
+
+  // ─── Focus name input on load ───
+  setTimeout(() => nameInput.focus(), 1800);
+
+})();
+</script>
+</body>
+</html>
